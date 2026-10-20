@@ -1,0 +1,60 @@
+# ============ Python ============
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ============ 虚拟环境 ============
+.venv/
+venv/
+env/
+ENV/
+
+# ============ 环境变量与密钥（务必不要提交） ============
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets.json
+
+# ============ 运行时数据 ============
+# 用户上传的素材、本地 API Key 配置（storage/settings.json）、生成的帧/片段/成片
+backend/storage/
+storage/
+backend/outputs/
+logs/
+*.log
+
+# ============ 生成产物（媒体文件） ============
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.psd
+
+# ============ 前端 ============
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# ============ 编辑器 / 系统 ============
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

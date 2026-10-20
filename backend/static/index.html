@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 视频工作流 · 项目向导</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .card-img { aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; width: 100%; background:#f1f5f9; }
+  .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:sk 1.4s infinite; }
+  @keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .dropzone.drag { border-color:#2563eb; background:#eff6ff; }
+  .stepper-dot { transition: all .2s; }
+  textarea, input[type=text], input[type=number], input[type=password], input[type=url] { outline: none; }
+  input:focus, textarea:focus { border-color:#93c5fd !important; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+  .dirty { border-color:#f59e0b !important; }
+  .field-grid input, .field-grid textarea { border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; font-size:13px; width:100%; background:#fff; }
+  .field-grid input:disabled, .field-grid textarea:disabled { background:#f8fafc; color:#94a3b8; cursor:not-allowed; }
+  ::-webkit-scrollbar { height:6px; width:6px; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<div class="max-w-6xl mx-auto px-4 md:px-6 py-6">
+
+  <!-- ===== 顶栏 ===== -->
+  <header class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        🎬 AI 视频工作流
+        <span id="mode-badge" class="text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">检测中…</span>
+      </h1>
+      <p class="text-sm text-slate-500 mt-1">人物不换脸 · 产品不变形 · 服装不乱变 · 场景不乱跳 · 镜头连贯</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="newProject()" class="hidden text-sm px-3 py-2 border border-slate-300 rounded-lg hover:bg-white text-slate-600 transition" id="btn-new-project">＋ 新建项目</button>
+      <button onclick="openSettings()" class="text-sm px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        API 设置
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== 步骤条 ===== -->
+  <div id="stepper" class="flex gap-1.5 mb-5 overflow-x-auto pb-1 text-[13px] select-none"></div>
+
+  <!-- ===== 全局提示/错误 ===== -->
+  <div id="banner-error" class="hidden mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
+    <div class="flex items-start gap-3">
+      <span class="text-red-600 font-semibold">⚠️</span>
+      <div class="flex-1"><p class="text-red-800 font-medium text-sm">出错了</p><p id="banner-error-msg" class="text-red-600 text-sm mt-0.5"></p></div>
+      <button onclick="hideBanner()" class="text-red-400 hover:text-red-600 text-sm">✕</button>
+    </div>
+  </div>
+  <div id="banner-info" class="hidden mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div class="flex items-start gap-3">
+      <span class="text-blue-600 font-semibold">ℹ️</span>
+      <div class="flex-1"><p id="banner-info-msg" class="text-blue-800 text-sm"></p></div>
+      <button onclick="hideBanner('banner-info')" class="text-blue-400 hover:text-blue-600 text-sm">✕</button>
+    </div>
+  </div>
+
+  <!-- ===== 视图：创建项目 ===== -->
+  <div id="view-create" class="space-y-5">
+    <!-- 项目信息 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center">1</span>
+        <h2 class="font-semibold text-slate-900">创建项目</h2>
+      </div>
+      <p class="text-sm text-slate-500 mb-5 ml-9">先告诉 AI 你想拍什么：一句话创意 + 目标时长 + 基础素材。素材越多，后面越不容易跑偏。</p>
+      <div class="space-y-4">
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-slate-700 block mb-1">项目名称</label>
+            <input id="f-title" type="text" value="我的产品短视频" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="例如：精华液种草视频" />
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700 block mb-1">目标总时长（秒）</label>
+            <input id="f-duration" type="number" min="5" max="300" value="30" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <p class="text-xs text-slate-400 mt-1">按每镜头 5 秒估算，30 秒 ≈ 6 个镜头</p>
+          </div>
+        </div>
+        <div>
+          <label class="text-sm font-medium text-slate-700 block mb-1">创意描述（想拍什么？）</label>
+          <textarea id="f-brief" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="例如：年轻女主清晨在化妆台前，用我们的精华液护肤，镜头特写产品瓶身与使用过程，画面干净通透、氛围轻松高级…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 素材上传 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center">2</span>
+        <h2 class="font-semibold text-slate-900">上传素材</h2>
+        <span class="text-xs text-slate-400 font-normal">（带 * 为必传）</span>
+      </div>
+      <p class="text-sm text-slate-500 mb-5 ml-9">上传越清晰、越正面、光线越均匀的参考图，AI 生成的多角度越稳定。</p>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="dropzones"></div>
+    </div>
+
+    <button onclick="createProject()" id="btn-create" class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3.5 rounded-xl transition text-lg disabled:cursor-not-allowed">
+      创建项目 →
+    </button>
+
+    <!-- 已有项目 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <h3 class="font-semibold text-slate-900 mb-3">📂 继续已有项目</h3>
+      <div id="project-list" class="text-sm text-slate-500"></div>
+    </div>
+  </div>
+
+  <!-- ===== 视图：生成资产（Step2 入口） ===== -->
+  <div id="view-generate" class="hidden">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-5">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center">2</span>
+        <h2 class="font-semibold text-slate-900">生成主资产（档案卡）</h2>
+      </div>
+      <p class="text-sm text-slate-500 mt-1 ml-9">AI 会基于你的素材与创意，生成 4 组「一致性资产」，之后所有镜头都必须以它们为唯一参照：</p>
+      <div class="grid md:grid-cols-4 gap-3 mt-5" id="asset-overview"></div>
+      <div id="gen-summary" class="mt-4"></div>
+      <button onclick="generateAssets()" id="btn-generate" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3.5 rounded-xl transition disabled:cursor-not-allowed">
+        ✨ 开始 AI 生成主资产
+      </button>
+      <p class="text-center text-xs text-slate-400 mt-2">生成中请勿关闭页面；未配置 API 时自动以「演示模式」运行（示例文案 + 占位图）</p>
+    </div>
+  </div>
+
+  <!-- ===== 视图：审查资产（Step2 结果，可修正） ===== -->
+  <div id="view-review" class="hidden">
+    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-5">
+      <div class="flex items-start gap-3">
+        <span class="text-xl">✅</span>
+        <div>
+          <h2 class="font-semibold text-slate-900 text-sm md:text-base">主资产已生成 —— 请逐项检查</h2>
+          <p class="text-slate-600 text-sm mt-0.5">
+            描述文字可直接修改（自动保存）；某张角度不满意点 <span class="font-medium">↻</span> 单独重生成；
+            参考图错了可「更换参考图」。<span class="font-medium text-amber-700">确认没问题后点底部「锁定资产」</span>，锁定后后续所有镜头只能引用这些形象，禁止模型改动。
+          </p>
+        </div>
+      </div>
+    </div>
+    <div id="review-assets" class="space-y-5"></div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-5">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="text-sm text-slate-500">
+          <p class="font-medium text-slate-700">确认无误？锁定后进入 Step 3 镜头规划</p>
+          <p class="text-xs mt-0.5">⚠️ 锁定后本轮不可再修改（如需修改请重新建项目或先反馈给我）</p>
+        </div>
+        <button onclick="lockProject()" id="btn-lock" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-8 rounded-xl transition">
+          🔒 锁定资产，继续 →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 视图：已锁定 ===== -->
+  <div id="view-locked" class="hidden"></div>
+
+  <!-- ===== 加载浮层 ===== -->
+  <div id="busy" class="hidden fixed inset-0 bg-black/30 backdrop-blur-[2px] z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent mb-4"></div>
+      <p class="text-slate-800 font-medium" id="busy-title">处理中…</p>
+      <p class="text-sm text-slate-500 mt-1" id="busy-sub">请稍候，通常需要 30~90 秒</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== API 设置模态 ===== -->
+<div id="settings-modal" class="hidden fixed inset-0 bg-black/30 z-50 flex items-start justify-center overflow-y-auto p-4 md:p-8">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-4">
+    <div class="flex items-center justify-between p-5 border-b border-slate-200">
+      <div>
+        <h3 class="font-semibold text-slate-900">🔑 API 设置</h3>
+        <p class="text-xs text-slate-500 mt-0.5">四组模型可分别填 Key / 接口地址 / 模型名，保存在本机，不会上传到任何第三方。</p>
+      </div>
+      <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+    </div>
+    <div class="p-5 space-y-3" id="settings-groups"></div>
+    <div class="p-5 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+      <p class="text-xs text-slate-400 max-w-xs">当前版本：未配置 Key 时系统自动以「演示模式」运行；保存的配置将在后续步骤（分镜/关键帧/视频/音频）接入真实模型调用。</p>
+      <button onclick="saveSettings()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-6 py-2.5 rounded-lg transition">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+ *  常量与状态
+ * ================================================================ */
+const API = window.location.origin;
+const ABS = u => (u && !/^https?:/.test(u) ? API + u : u);
+
+const ASSET_META = {
+  character: { label:'人物', color:'pink',  badge:'CHAR_001 · 必须 100% 保持脸型/五官/发型/服装', angles:null },
+  product:   { label:'产品', color:'purple',badge:'PROD_001 · A 级保护：Logo/包装文字/瓶体/比例禁止改变', angles:null },
+  scene:     { label:'场景', color:'cyan',  badge:'SCENE_001 · 空间/光影/色调锚点', angles:null },
+  voice:     { label:'声音', color:'amber', badge:'VOICE_001 · 音色指纹（克隆配音）', angles:null },
+};
+
+const S = {
+  project: null,          // 当前项目（服务端返回的脱敏结构）
+  files: {},              // 待上传文件
+  busy: null,
+  dirty: {},              // 待保存的 desc 修改 { assetId: {key: value} }
+  dirtyTimer: null,
+  settings: null,
+};
+
+/* ================================================================
+ *  通用工具
+ * ================================================================ */
+const $ = id => document.getElementById(id);
+
+function setBusy(show, title, sub) {
+  $('busy').classList.toggle('hidden', !show);
+  if (show) { $('busy-title').textContent = title || '处理中…'; $('busy-sub').textContent = sub || ''; }
+}
+function showBanner(msg, isErr) {
+  const el = isErr ? $('banner-error') : $('banner-info');
+  (isErr ? $('banner-error-msg') : $('banner-info-msg')).textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideBanner(id) { $(id || 'banner-error').classList.add('hidden'); }
+
+async function jfetch(url, opts) {
+  const res = await fetch(API + url, opts);
+  let json = null;
+  try { json = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const detail = json && (json.detail || json.error || json.message) || ('HTTP ' + res.status);
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+  }
+  if (json && json.success === false) throw new Error(json.message || json.error || '操作失败');
+  return json;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtVal(v) { return Array.isArray(v) ? v.join('，') : v; }
+function fmtWhen(iso) { if (!iso) return ''; try { const d=new Date(iso); return d.toLocaleString('zh-CN',{hour12:false}); } catch(e){ return iso; } }
+
+/* ================================================================
+ *  步骤条
+ * ================================================================ */
+const STEPS = [
+  { n:'1',  t:'创建项目' },   // index 0
+  { n:'2',  t:'生成主资产' },
+  { n:'2.5',t:'锁定资产' },
+  { n:'3',  t:'分镜规划' },
+  { n:'4',  t:'首尾帧' },
+  { n:'5',  t:'5 秒视频' },
+  { n:'6',  t:'配音配乐' },
+  { n:'7',  t:'剪辑拼接' },
+  { n:'8',  t:'终检 QC' },
+];
+function renderStepper() {
+  const st = S.project ? S.project.status : null;
+  const map = { created:1, assets_ready:2, assets_locked:3 };
+  let active = st ? (map[st] || 0) : 0;
+  $('stepper').innerHTML = STEPS.map((s, i) => {
+    let cls = 'bg-slate-200 text-slate-400';          // 未到
+    let tail = ' opacity-100';
+    if (i < active) cls = 'bg-emerald-500 text-white';   // 已完成
+    else if (i === active) cls = 'bg-blue-600 text-white shadow-md';
+    if (active >= 3 && i > 2) { cls = 'bg-slate-200 text-slate-300'; tail = ' opacity-60'; }
+    if (i < active && active > 2) {} // 已完成的 1~2.5 仍是绿
+    return `<div class="flex items-center gap-1 whitespace-nowrap" title="${s.t}">
+      <div class="stepper-dot ${cls} w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px]">${i < active ? '✓' : s.n}</div>
+      <span class="text-slate-600">${s.t}</span>
+      ${i < STEPS.length-1 ? `<span class="text-slate-300 mx-0.5 ${tail}">›</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* ================================================================
+ *  视图切换
+ * ================================================================ */
+function showView(name) {
+  ['view-create','view-generate','view-review','view-locked'].forEach(v => $(v).classList.add('hidden'));
+  $('view-' + name).classList.remove('hidden');
+  $('btn-new-project').classList.toggle('hidden', name === 'create');
+}
+function refreshView() {
+  renderStepper();
+  if (!S.project) { showView('create'); return; }
+  const st = S.project.status;
+  if (st === 'created')      { renderGenerate(); showView('generate'); }
+  else if (st === 'assets_ready') { renderReview(); showView('review'); }
+  else if (st === 'assets_locked'){ renderLocked(); showView('locked'); }
+  else { showView('create'); }
+}
+
+/* ================================================================
+ *  视图 A：创建项目
+ * ================================================================ */
+const DZ = [
+  { key:'character_image',  label:'人物正面照', req:true,  accept:'image/*',   tip:'正脸、平视、光线均匀，五官清晰', color:'pink' },
+  { key:'product_image',    label:'产品正面图', req:true,  accept:'image/*',   tip:'瓶身完整、Logo 清晰、背景简单', color:'purple' },
+  { key:'scene_image',      label:'场景参考图', req:false, accept:'image/*',   tip:'可选：想要的拍摄场景（化妆台/厨房…）', color:'cyan' },
+  { key:'voice_audio',      label:'参考音频',   req:false, accept:'audio/*',   tip:'可选：10-30 秒人声，用于克隆专属配音；不上传将由系统根据创意自动生成默认音色', color:'amber' },
+  { key:'music_audio',      label:'背景音乐',   req:false, accept:'audio/*',   tip:'可选：整片背景乐（也可 Step6 再选）', color:'teal' },
+  { key:'reference_video',  label:'参考视频',   req:false, accept:'video/*',   tip:'可选：想要的运镜/节奏参考', color:'slate' },
+];
+function renderDropzones() {
+  $('dropzones').innerHTML = DZ.map(d => `
+    <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-blue-400 cursor-pointer transition dropzone"
+         data-key="${d.key}" onclick="pickFile('${d.key}')">
+      <div id="dz-preview-${d.key}" class="mb-3">
+        <div class="w-full aspect-square bg-slate-100 rounded-lg flex flex-col items-center justify-center text-slate-400 gap-1">
+          <span class="text-2xl">${d.key==='character_image'?'👩':d.key==='product_image'?'🧴':d.key==='scene_image'?'🏠':d.key==='voice_audio'?'🎙️':d.key==='music_audio'?'🎵':'🎞️'}</span>
+          <span class="text-[11px]">${d.label}${d.req?' *':''}</span>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">${d.tip}</p>
+      <input type="file" accept="${d.accept}" class="hidden" id="input-${d.key}" data-key="${d.key}" />
+    </div>`).join('');
+
+  DZ.forEach(d => {
+    const input = $('input-' + d.key);
+    input.addEventListener('change', e => handleFile(d.key, e.target.files[0]));
+    const box = document.querySelector(`.dropzone[data-key="${d.key}"]`);
+    box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('drag'); });
+    box.addEventListener('dragleave', () => box.classList.remove('drag'));
+    box.addEventListener('drop', e => {
+      e.preventDefault(); box.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(d.key, e.dataTransfer.files[0]);
+    });
+  });
+}
+function pickFile(key) { $('input-' + key).click(); }
+function handleFile(key, file) {
+  if (!file) return;
+  S.files[key] = file;
+  const box = document.querySelector(`.dropzone[data-key="${key}"]`);
+  box.classList.add('border-emerald-400');
+  const isImg = file.type.startsWith('image/');
+  const isAudio = file.type.startsWith('audio/');
+  const isVideo = file.type.startsWith('video/');
+  let inner;
+  if (isImg) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      $('dz-preview-' + key).innerHTML = `<img src="${e.target.result}" class="w-full aspect-square object-cover rounded-lg" />`;
+    };
+    reader.readAsDataURL(file);
+  } else if (isAudio) {
+    inner = `<div class="w-full aspect-square bg-emerald-50 rounded-lg flex flex-col items-center justify-center p-2">
+      <span class="text-xl mb-1">🔊</span>
+      <p class="text-[10px] text-emerald-700 font-medium break-all text-center px-1">${esc(file.name)}</p>
+      <p class="text-[10px] text-slate-400 mt-0.5">${(file.size/1024).toFixed(0)} KB</p></div>`;
+    $('dz-preview-' + key).innerHTML = inner;
+  } else if (isVideo) {
+    inner = `<div class="w-full aspect-square bg-emerald-50 rounded-lg flex flex-col items-center justify-center p-2">
+      <span class="text-xl mb-1">🎞️</span>
+      <p class="text-[10px] text-emerald-700 font-medium break-all text-center px-1">${esc(file.name)}</p>
+      <p class="text-[10px] text-slate-400 mt-0.5">${(file.size/1024).toFixed(0)} KB</p></div>`;
+    $('dz-preview-' + key).innerHTML = inner;
+  }
+}
+
+async function createProject() {
+  const title = $('f-title').value.trim() || '未命名项目';
+  const dur = Math.max(5, parseInt($('f-duration').value) || 30);
+  const brief = $('f-brief').value.trim();
+  const hasChar = S.files.character_image, hasProd = S.files.product_image;
+  if (!hasChar || !hasProd) { showBanner('人物正面照和产品正面图是必传项，请先上传。', true); return; }
+
+  const fd = new FormData();
+  DZ.forEach(d => { if (S.files[d.key]) fd.append(d.key, S.files[d.key]); });
+  fd.append('title', title); fd.append('creative_brief', brief); fd.append('target_duration', String(dur));
+
+  setBusy(true, '正在创建项目…', '上传素材中');
+  try {
+    const json = await jfetch('/api/projects', { method:'POST', body: fd });
+    S.project = json.data;
+    hideBanner(); setBusy(false);
+    refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+
+function renderProjectList() {
+  const box = $('project-list');
+  jfetch('/api/projects').then(json => {
+    const list = (json.data || []).filter(p => p.project_id !== (S.project && S.project.project_id));
+    if (!list.length) { box.innerHTML = '<p class="text-xs">还没有历史项目。创建第一个吧！</p>'; return; }
+    box.innerHTML = list.map(p => `
+      <div class="flex items-center justify-between gap-3 py-2.5 border-b border-slate-100 last:border-0">
+        <div class="min-w-0">
+          <p class="font-medium text-slate-800 truncate">${esc(p.title)}</p>
+          <p class="text-xs text-slate-400">${esc(p.status)} · ${fmtWhen(p.updated_at)}</p>
+        </div>
+        <button onclick="loadProject('${p.project_id}')" class="shrink-0 text-sm px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg transition">载入</button>
+      </div>`).join('');
+  }).catch(() => { box.innerHTML = '<p class="text-xs text-red-400">项目列表加载失败</p>'; });
+}
+async function loadProject(pid) {
+  setBusy(true, '正在载入项目…');
+  try {
+    const json = await jfetch('/api/projects/' + pid);
+    S.project = json.data; hideBanner(); setBusy(false); refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+function newProject() {
+  if (S.project && S.project.status !== 'assets_locked' && !confirm('放弃当前项目进度，新建一个？')) return;
+  S.project = null; S.files = {}; S.dirty = {};
+  renderDropzones(); renderProjectList(); refreshView();
+}
+
+/* ================================================================
+ *  视图 B：生成资产
+ * ================================================================ */
+function renderGenerate() {
+  const p = S.project;
+  const brief = p.creative_brief || '（未填写创意，将由 AI 依素材生成）';
+  const dur = p.target_duration || 30;
+  const up = p.uploads || {};
+  const have = k => !!up[k + '_url'];
+  const assetOverview = [
+    { icon:'👩', name:'人物', src:up.character_image_url, ok:have('character_image'), note:'6 角度' },
+    { icon:'🧴', name:'产品', src:up.product_image_url,   ok:have('product_image'),   note:'6 角度' },
+    { icon:'🏠', name:'场景', src:up.scene_image_url,     ok:have('scene_image'),     note: up.scene_image_url ? '2 角度' : 'AI 生成' },
+    { icon:'🎙️', name:'声音', src:up.voice_audio_url,     ok:true,                     note: up.voice_audio_url ? '克隆音色（已上传）' : '默认音色（系统将自动生成）' },
+  ];
+  $('asset-overview').innerHTML = assetOverview.map(a => `
+    <div class="border border-slate-200 rounded-xl p-3">
+      <div class="flex items-center gap-2 mb-2">
+        <img src="${ABS(a.src) || ''}" onerror="this.style.visibility='hidden'" class="w-8 h-8 rounded-lg object-cover ${a.src ? '' : 'hidden'}" />
+        <span class="text-3xl ${a.src ? 'hidden' : ''}">${a.icon}</span>
+        <div><p class="font-medium text-slate-800 text-sm">${a.name}</p><p class="text-[11px] text-slate-400">${a.note}</p></div>
+      </div>
+      <p class="text-[11px] px-2 py-1 rounded ${a.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${a.ok ? '✓ 已上传' : '○ 未上传'}</p>
+    </div>`).join('');
+
+  $('btn-generate').disabled = false;
+  $('gen-summary').innerHTML = `
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm">
+      <p class="text-slate-500"><span class="font-medium text-slate-700">创意：</span>${esc(brief)}</p>
+      <p class="text-slate-500 mt-1"><span class="font-medium text-slate-700">目标时长：</span>约 ${dur} 秒（约 ${Math.max(1, Math.round(dur/5))} 个镜头）</p>
+    </div>`;
+}
+
+async function generateAssets() {
+  const p = S.project;
+  setBusy(true, 'AI 正在生成主资产…', '分析素材 → 撰写描述 → 生成多角度图，通常需要 1~3 分钟');
+  try {
+    const json = await jfetch(`/api/projects/${p.project_id}/generate-assets`, { method:'POST' });
+    S.project = json.data; hideBanner(); setBusy(false); refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+
+/* ================================================================
+ *  视图 C：审查资产（可编辑/重生成/换源）
+ * ================================================================ */
+function renderReview() {
+  const assets = S.project.assets || {};
+  const order = ['CHAR_001','PROD_001','SCENE_001','VOICE_001'];
+  const wrap = $('review-assets');
+  wrap.innerHTML = order.filter(id => assets[id]).map(id => assetCard(id, assets[id])).join('');
+  wrap.querySelectorAll('[data-role="desc-input"]').forEach(el => {
+    el.addEventListener('input', () => markDirty(el.dataset.aid, el.dataset.key, el));
+    el.addEventListener('change', () => flushDirty());
+  });
+  const btnLock = $('btn-lock'); btnLock.disabled = false;
+  btnLock.innerHTML = Object.values(assets).some(a => a.locked) ? '🔒 已锁定' : '🔒 锁定资产，继续 →';
+}
+
+function assetCard(aid, a) {
+  const meta = ASSET_META[a.type] || { label:a.type, badge:'', color:'slate' };
+  const locked = !!a.locked;
+  const isImg = a.type !== 'voice';
+  const isScene = a.type === 'scene';
+  const descHtml = renderDescEditors(aid, a, locked);
+  const anglesHtml = isImg ? renderAngles(aid, a, locked) : renderVoiceInfo(a, locked);
+  const lockTag = locked
+    ? '<span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg> 已锁定（只读）</span>'
+    : '<span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">未锁定 · 可修改</span>';
+
+  return `
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden ${locked ? 'opacity-95' : ''}">
+    <!-- 卡片头 -->
+    <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2" style="background:linear-gradient(90deg,#fff, ${colorBg(meta.color)})">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-white font-bold shadow-sm" style="background:${colorMain(meta.color)}">${a.type==='character'?'👩':a.type==='product'?'🧴':a.type==='scene'?'🏠':'🎙️'}</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-slate-900">${meta.label}资产</span>
+            <code class="text-[11px] text-slate-400 bg-white/70 px-1.5 py-0.5 rounded">${aid}</code>
+            ${lockTag}
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5">${meta.badge}</p>
+        </div>
+      </div>
+      ${!locked && isImg ? replaceBtn(aid) : ''}
+    </div>
+
+    <div class="grid md:grid-cols-5 gap-0">
+      <!-- 左：描述编辑 -->
+      <div class="md:col-span-2 p-5 border-r border-slate-100">
+        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">📝 资产描述（AI 识别结果）</h4>
+        ${descHtml}
+        <p class="text-[11px] text-slate-400 mt-3" id="save-state-${aid}">修改后自动保存</p>
+      </div>
+      <!-- 右：角度图 -->
+      <div class="md:col-span-3 p-5">
+        ${anglesHtml}
+      </div>
+    </div>
+  </div>`;
+}
+function colorMain(c) {
+  return ({ pink:'#ec4899', purple:'#a855f7', cyan:'#06b6d4', amber:'#f59e0b', teal:'#14b8a6', slate:'#64748b' })[c] || '#2563eb';
+}
+function colorBg(c) {
+  return ({ pink:'#fdf2f8', purple:'#faf5ff', cyan:'#ecfeff', amber:'#fffbeb', teal:'#f0fdfa', slate:'#f8fafc' })[c] || '#eff6ff';
+}
+
+/* ---- 描述编辑器（通用字段渲染） ---- */
+function renderDescEditors(aid, a, locked) {
+  const desc = a.desc || {};
+  const LABELS = {
+    name:'名称', gender:'性别', age_range:'年龄段', hair:'发型', face_features:'面部特征', body_type:'体型',
+    clothing:'服装', style_tags:'风格标签（逗号分隔）', description:'完整描述',
+    category:'品类', color:'颜色', material:'材质', shape:'瓶形/外观', logo_text:'Logo/文字', distinctive_features:'辨识特征',
+    style:'风格', lighting:'灯光', color_palette:'色调', props:'道具（逗号分隔）', language:'语言',
+  };
+  const keys = Object.keys(desc);
+  const rows = keys.map(k => {
+    const val = desc[k];
+    const isArr = Array.isArray(val);
+    const show = isArr || ['string','number'].includes(typeof val);
+    if (!show) return '';
+    const label = LABELS[k] || k;
+    const str = isArr ? val.join(', ') : String(val == null ? '' : val);
+    const isLong = k === 'description' || (typeof str === 'string' && str.length > 80);
+    const colorHint = { gender:'#ec4899', age_range:'#ec4899', hair:'#ec4899', clothing:'#8b5cf6', logo_text:'#a855f7', distinctive_features:'#a855f7' }[k];
+    const tag = isArr || k==='style_tags' || k==='props' ? 'tag' : colorHint ? 'text' : 'text';
+    const input = isLong
+      ? `<textarea rows="3" data-role="desc-input" data-aid="${aid}" data-key="${k}" ${locked?'disabled':''}>${esc(str)}</textarea>`
+      : `<input type="text" data-role="desc-input" data-aid="${aid}" data-key="${k}" value="${esc(str)}" ${locked?'disabled':''} />`;
+    return `<div class="mb-2.5"><label class="text-[11px] text-slate-500 block mb-0.5">${esc(label)}</label>${input}</div>`;
+  }).join('');
+  const extra = a.source_image_url && a.type !== 'voice'
+    ? `<div class="mt-2 flex items-center gap-2"><img src="${ABS(a.source_image_url)}" class="w-9 h-9 rounded-lg object-cover border border-slate-200" /><span class="text-[11px] text-slate-400">参考原图（上方角度图均以此图生成）</span></div>`
+    : '';
+  return `<div class="field-grid">${rows}</div>${extra}`;
+}
+
+function markDirty(aid, key, el) {
+  el.classList.add('dirty');
+  if (!S.dirty[aid]) S.dirty[aid] = {};
+  let val = el.value;
+  // 数组字段（逗号分隔）在保存时转换
+  S.dirty[aid][key] = val;
+  const st = $('save-state-' + aid);
+  if (st) st.textContent = '● 有修改待保存…';
+  clearTimeout(S.dirtyTimer);
+  S.dirtyTimer = setTimeout(flushDirty, 900);
+}
+async function flushDirty() {
+  if (!S.dirty || !Object.keys(S.dirty).length) return;
+  const payload = {};
+  for (const [aid, fields] of Object.entries(S.dirty)) {
+    payload[aid] = { desc: {} };
+    const asset = S.project.assets[aid];
+    for (const [k, v] of Object.entries(fields)) {
+      const orig = asset && asset.desc ? asset.desc[k] : null;
+      payload[aid].desc[k] = Array.isArray(orig)
+        ? String(v).split(/[,，]/).map(x => x.trim()).filter(Boolean)
+        : v;
+    }
+  }
+  const st = $('save-state-' + Object.keys(S.dirty)[0]);
+  if (st) st.textContent = '保存中…';
+  try {
+    const json = await jfetch(`/api/projects/${S.project.project_id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ assets_edits: payload }),
+    });
+    S.project = json.data;
+    // 清理脏标记
+    for (const [aid, fields] of Object.entries(S.dirty)) {
+      const stEl = $('save-state-' + aid); if (stEl) stEl.textContent = '✓ 已保存';
+      Object.keys(fields).forEach(k => {
+        document.querySelectorAll(`[data-aid="${aid}"][data-key="${k}"]`).forEach(el => {
+          const arr = Array.isArray(assetField(aid,k)) ? assetField(aid,k) : null;
+          if (arr) el.value = arr.join(', ');
+          el.classList.remove('dirty');
+        });
+      });
+    }
+    S.dirty = {};
+    setTimeout(() => { document.querySelectorAll('[id^="save-state-"]').forEach(e => e.textContent = '修改后自动保存'); }, 2500);
+  } catch (err) {
+    const stEl = $('save-state-' + Object.keys(S.dirty)[0]);
+    if (stEl) stEl.textContent = '✗ 保存失败：' + err.message;
+    showBanner('描述保存失败：' + err.message, true);
+  }
+}
+function assetField(aid, k) {
+  const a = (S.project && S.project.assets) ? S.project.assets[aid] : null;
+  return a && a.desc ? a.desc[k] : null;
+}
+
+/* ---- 角度网格 ---- */
+function renderAngles(aid, a, locked) {
+  const angles = a.angles || [];
+  const labels = { front:'正面', three_quarter:'3/4 侧', profile:'侧面', full_body:'全身', half_body:'半身', outfit:'服装细节',
+                   side:'侧面', back:'背面', top:'顶视', '45_degree':'45°', logo:'Logo', establishing:'全景', detail:'局部' };
+  const head = a.type === 'character' ? '6 个角度 · 多角度锁定形象' :
+               a.type === 'product'   ? '6 个角度 · 多角度锁定产品' : '2 个角度 · 空间锚点';
+  if (!angles.length) {
+    return `
+      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">🖼 角度图</h4>
+      <div class="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-6 text-center">
+        <p class="text-slate-500 text-sm">暂无角度图${a.type === 'scene' && !a.source_image_url ? '：未上传场景参考图' : ''}</p>
+        <p class="text-xs text-slate-400 mt-1">${a.type === 'scene' ? '可上传一张场景参考图，或直接修改左侧场景描述，Step 3 会据此生成场景' : ''}</p>
+      </div>`;
+  }
+  const grid = angles.map(ag => {
+    const img = ag.image_url
+      ? `<img src="${ABS(ag.image_url)}" class="card-img" loading="lazy" />`
+      : `<div class="card-img skeleton flex items-center justify-center"><span class="text-[11px] text-slate-400">生成失败</span></div>`;
+    const regen = (!locked && ag.image_url)
+      ? `<button onclick="regenAngle('${aid}','${ag.code}')" title="重新生成这一张" class="absolute top-1 right-1 w-7 h-7 rounded-full bg-white/90 hover:bg-white shadow text-slate-500 hover:text-blue-600 flex items-center justify-center text-sm backdrop-blur">↻</button>`
+      : '';
+    return `<div class="relative">
+      ${img}
+      <span class="absolute bottom-1 left-1 bg-black/60 text-white text-[11px] px-1.5 py-0.5 rounded">${esc(labels[ag.code] || ag.code)}</span>
+      ${regen}
+    </div>`;
+  }).join('');
+  return `
+    <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">🖼 角度图（${head}）</h4>
+    <div class="grid grid-cols-3 gap-2.5">${grid}</div>`;
+}
+function renderVoiceInfo(a, locked) {
+  const spk = a.speaker_id;
+  const src = a.source_audio_url;
+  const isAuto = !!a.auto_generated;
+  const sampleLine = a.sample_line || '';
+  const tipBox = spk
+    ? `<p class="text-emerald-700 font-medium">✓ 音色克隆就绪</p><p class="text-slate-500 text-xs mt-1">Speaker ID: <code>${esc(spk)}</code> —— Step 6 配音将使用该音色</p>`
+    : isAuto
+      ? `<p class="text-amber-700 font-medium">🎵 系统自动生成的默认音色参考音</p>
+         <p class="text-slate-500 text-xs mt-1">你未上传参考音频，系统已根据你的创意描述自动合成了一段示范台词。
+            <br/>示范台词：<em class="text-slate-700">「${esc(sampleLine || '...')}」</em>
+            <br/><span class="text-slate-400">Step 6 配音将基于这段音色合成；如需克隆专属音色，可删除项目重新上传 10-30 秒人声。</span></p>`
+      : `<p class="text-slate-600 font-medium">○ 未上传参考音频</p><p class="text-slate-400 text-xs mt-1">Step 6 配音时将使用默认音色。</p>`;
+  return `
+    <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">🔊 声音指纹</h4>
+    ${src ? `<audio controls preload="none" class="w-full mb-3" src="${ABS(src)}"></audio>` : ''}
+    <div class="rounded-xl p-4 text-sm border ${spk ? 'bg-emerald-50 border-emerald-200' : isAuto ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}">
+      ${tipBox}
+    </div>`;
+}
+function replaceBtn(aid) {
+  return `
+    <label class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer text-slate-600 transition inline-flex items-center gap-1">
+      📤 更换参考图（重生成全部角度）
+      <input type="file" accept="image/*" class="hidden" onchange="replaceSource('${aid}', this)" />
+    </label>`;
+}
+async function replaceSource(aid, input) {
+  const f = input.files[0]; if (!f) return;
+  if (!confirm('更换参考图会用新图重新生成该资产的全部角度，确定？')) { input.value=''; return; }
+  const fd = new FormData(); fd.append('file', f);
+  setBusy(true, '正在更换参考图…', '上传并重新生成该资产全部角度，请稍候');
+  try {
+    const json = await jfetch(`/api/projects/${S.project.project_id}/assets/${aid}/replace-source`, { method:'POST', body: fd });
+    S.project = json.data; hideBanner(); setBusy(false); refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+async function regenAngle(aid, code) {
+  if (!confirm(`重新生成 ${aid} 的「${code}」角度？只影响这一张。`)) return;
+  setBusy(true, '正在重新生成…', '只重生成这一张角度图');
+  try {
+    const json = await jfetch(`/api/projects/${S.project.project_id}/assets/${aid}/angles/${code}/regenerate`, { method:'POST' });
+    S.project = json.data; hideBanner(); setBusy(false); refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+
+/* ---- 锁定 ---- */
+async function lockProject() {
+  if (!confirm('锁定后这些资产将作为后续所有镜头的唯一参照（只读）。确认锁定？')) return;
+  setBusy(true, '正在锁定资产…');
+  try {
+    const json = await jfetch(`/api/projects/${S.project.project_id}/lock`, { method:'POST' });
+    S.project = json.data; hideBanner(); setBusy(false); refreshView();
+  } catch (err) { setBusy(false); showBanner(err.message, true); }
+}
+
+/* ================================================================
+ *  视图 D：已锁定（只读总结 + 下一步预告）
+ * ================================================================ */
+function renderLocked() {
+  const p = S.project; const assets = p.assets || {};
+  const order = ['CHAR_001','PROD_001','SCENE_001','VOICE_001'];
+  const cards = order.filter(id => assets[id]).map(id => {
+    const a = assets[id];
+    const meta = ASSET_META[a.type] || {};
+    const icon = a.type==='character'?'👩':a.type==='product'?'🧴':a.type==='scene'?'🏠':'🎙️';
+    const sub = a.type === 'voice'
+      ? (a.speaker_id ? '✓ 音色克隆就绪' : (a.auto_generated ? '🎵 系统自动生成的默认音色' : '默认音色'))
+      : `${(a.angles||[]).length} 张角度已锁定`;
+    const thumb = a.type === 'voice'
+      ? (a.source_audio_url ? ABS(a.source_audio_url) : null)
+      : (a.angles && a.angles[0] ? ABS(a.angles[0].image_url) : ABS(a.source_image_url));
+    return `
+    <div class="bg-white rounded-2xl shadow-sm border border-emerald-200 overflow-hidden">
+      <div class="p-4 flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl text-white shrink-0" style="background:${colorMain(meta.color)}">${icon}</div>
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-slate-900 flex items-center gap-2"><code class="text-[11px] text-slate-400">${id}</code>${meta.label||''}资产
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED</span></p>
+          <p class="text-xs text-slate-500 truncate">${esc(sub)}</p>
+        </div>
+        ${thumb ? (a.type==='voice'
+            ? '' : `<img src="${thumb}" class="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0" />`)
+          : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const next = [
+    ['3','📝','分镜规划','AI 依据创意把总时长切成 N 个镜头，每个镜头写出画面/运镜/台词，等你确认'],
+    ['4','🖼️','首尾帧','每镜头生成首帧+尾帧（严格继承已锁定的资产与上一镜尾帧），保证人物产品不变形、镜头连贯'],
+    ['5','🎬','5 秒视频','用视频模型基于首尾帧生成 5 秒片段，每段 QC 自动检查，不合格最多自动重试 3 次'],
+    ['6','🎙️','配音配乐','按分镜生成配音（用克隆音色）+ 配背景音乐，可逐句修改重新生成'],
+    ['7','✂️','剪辑拼接','把片段按顺序拼接成完整长视频，并做转场/音量统一'],
+    ['8','✅','终检 QC','最后一道完整检查：人物/产品/服装/场景/连贯性逐项打分，全绿才算交付'],
+  ].map(s => `
+    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-[11px] font-bold flex items-center justify-center">${s[0]}</span>
+        <span class="text-lg">${s[1]}</span>
+        <span class="font-medium text-slate-800 text-sm">${s[2]}</span>
+        <span class="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">待开发</span>
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">${s[3]}</p>
+    </div>`).join('');
+
+  $('view-locked').innerHTML = `
+    <div class="bg-emerald-600 rounded-2xl p-6 text-white shadow-sm mb-5">
+      <div class="flex items-center gap-4 flex-wrap">
+        <span class="text-4xl">🔒</span>
+        <div class="flex-1 min-w-[220px]">
+          <h2 class="text-xl font-bold">资产已锁定！一致性锚点建立完成</h2>
+          <p class="text-emerald-100 text-sm mt-1">「${esc(p.title)}」 · ${esc(p.creative_brief || '（未填创意）')}</p>
+          <p class="text-emerald-100 text-sm mt-0.5">目标 ${p.target_duration||30} 秒 · 从 Step 3 起，所有镜头只准引用以下锁定资产，模型不得改动。</p>
+        </div>
+        <button onclick="newProject()" class="bg-white text-emerald-700 font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-emerald-50 transition">＋ 新建项目</button>
+      </div>
+    </div>
+    <div class="grid md:grid-cols-4 gap-3 mb-6">${cards}</div>
+    <h3 class="font-semibold text-slate-800 mb-3">🚧 下一步（Step 3 ~ Step 8）</h3>
+    <div class="grid md:grid-cols-3 gap-3">${next}</div>
+    <div class="mt-5 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+      💡 告诉我「继续开发 Step 3（分镜规划）」，我就按上面的计划实现下一步，仍然每步等你确认。
+    </div>`;
+}
+
+/* ================================================================
+ *  API 设置
+ * ================================================================ */
+const SETTING_GROUPS = [
+  { key:'llm',   name:'🧠 大语言模型 LLM', desc:'生成描述、分镜、提示词。兼容 OpenAI 接口（可填中转/代理地址）', ph:{ base:'https://api.openai.com/v1', model:'gpt-4o' } },
+  { key:'image', name:'🖼️ 图像模型',       desc:'生成多角度图/关键帧。填完模型名下方会提示是否支持真 3D 多视角', ph:{ base:'', model:'' } },
+  { key:'video', name:'🎬 视频模型',       desc:'生成镜头片段。选完模型下方会自动判断声音来源（模型自带 or 后期配音）', ph:{ base:'', model:'' } },
+  { key:'audio', name:'🎙️ 音频模型',       desc:'配音克隆 / 背景乐，如 CosyVoice 兼容接口', ph:{ base:'', model:'' } },
+];
+let videoCatalog = null;   // 视频模型能力目录（用于下拉候选）
+let imageCatalog = null;   // 图像模型能力目录
+let _detectTimer = null;   // 输入防抖
+
+async function openSettings() {
+  $('settings-modal').classList.remove('hidden');
+  if (!S.settings) {
+    try { S.settings = (await jfetch('/api/settings')).data; }
+    catch(e){ S.settings = null; showBanner('设置读取失败：' + e.message, true); }
+  }
+  try { videoCatalog = (await jfetch('/api/settings/video-models')).data.catalog; } catch(e){ videoCatalog = null; }
+  try { imageCatalog = (await jfetch('/api/settings/image-models')).data.catalog; } catch(e){ imageCatalog = null; }
+  renderSettings();
+}
+/* —— 视频声音来源：按模型能力自动判断（auto）/ 强制模型自带（native）/ 强制后期配音（tts） —— */
+function videoAudioExtra(s) {
+  const mode = (s && s.audio_mode) || 'auto';
+  const opts = [
+    ['auto',   '自动判断（推荐）', '系统查你填的模型名：支持原生音视频→随画面出声音；否则→LLM台词+TTS配音'],
+    ['native', '只用模型自带音频', '只接受出片带音轨的模型（如 Veo 3 / Sora 2）。模型不带音频时给出警告'],
+    ['tts',    '强制后期配音',     '一律由 LLM 写台词 + TTS 生成配音，适合可灵/Seedance 等纯画面模型'],
+  ].map(([v, t, d]) => `
+    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${mode === v ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}">
+      <input type="radio" name="video-audio-mode" value="${v}" ${mode === v ? 'checked' : ''} onchange="onVideoAudioModeChange('${v}')" class="mt-0.5 accent-indigo-600" />
+      <span class="text-xs"><b class="text-slate-700">${t}</b><span class="text-slate-400 block">${d}</span></span>
+    </label>`).join('');
+  return `
+  <div class="border-t border-slate-100 pt-2">
+    <p class="text-[11px] font-medium text-slate-500 mb-1.5">🔊 视频声音生成方式（可随时改，不锁定模型）</p>
+    <div class="space-y-1.5">${opts}</div>
+    <div id="video-audio-hint" class="mt-2 text-[11px] rounded-lg px-3 py-2 hidden"></div>
+  </div>`;
+}
+function showVideoAudioHint(html, cls) {
+  const el = $('video-audio-hint');
+  if (!el) return;
+  if (html) { el.className = 'mt-2 text-[11px] rounded-lg px-3 py-2 ' + cls; el.innerHTML = html; }
+  else el.className = 'mt-2 text-[11px] rounded-lg px-3 py-2 hidden';
+}
+async function detectVideoAudio() {
+  const input = $('set-video-model');
+  const model = input ? input.value.trim() : '';
+  if (!model) { showVideoAudioHint('', ''); return; }
+  const mode = (document.querySelector('input[name="video-audio-mode"]:checked') || {}).value || 'auto';
+  let res = null;
+  try { res = (await jfetch('/api/settings/video-models/detect', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model }) })).data; } catch(e){}
+  if (!res) { showVideoAudioHint('', ''); return; }
+  if (res.known && res.native_audio) {
+    showVideoAudioHint(`✅ 已识别：<b>${esc(res.matched_name)}</b><br>${esc(res.note)}${mode === 'auto' ? '<br><b class="text-indigo-600">→ 将随画面一起生成对白/音效</b>' : mode === 'native' ? '<br><b class="text-indigo-600">✓ 与本组音频方式一致</b>' : '<br><span class="text-amber-600">⚠ 但你选了“强制后期配音”，如需模型原生声音请改选</span>'}`,
+      res.native_audio ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800');
+  } else if (res.known && !res.native_audio) {
+    showVideoAudioHint(`🎙️ 已识别：<b>${esc(res.matched_name)}</b><br>${esc(res.note)}${mode === 'auto' ? '<br><b class="text-indigo-600">→ 将自动走 LLM 台词 + TTS 配音</b>' : mode === 'tts' ? '<br><b class="text-indigo-600">✓ 与本组音频方式一致</b>' : '<br><span class="text-amber-600">⚠ 该模型默认不带音频，选了“只用模型自带音频”可能失败，建议改自动判断或后期配音</span>'}`,
+      'bg-amber-50 text-amber-800');
+  } else {
+    showVideoAudioHint(`❓ 未收录该模型：无法自动判断。<br>${esc(res.note || '')}${mode === 'auto' ? '<br><span class="text-slate-500">当前按“自动判断”处理：默认走后期配音；若你的模型带原生音频，请改选“只用模型自带音频”。</span>' : ''}`,
+      'bg-slate-50 text-slate-600');
+  }
+}
+function onVideoModelInput() { clearTimeout(_detectTimer); _detectTimer = setTimeout(detectVideoAudio, 400); }
+function onVideoAudioModeChange(mode) { detectVideoAudio(); }
+
+/* —— 图像模型能力提示：多视角生图 / 普通图生图 / 不是图像模型 —— */
+function imageCapabilityExtra(s) {
+  return `
+  <div class="border-t border-slate-100 pt-2">
+    <div id="image-capability-hint" class="text-[11px] rounded-lg px-3 py-2 hidden"></div>
+  </div>`;
+}
+function showImageCapabilityHint(html, cls) {
+  const el = $('image-capability-hint');
+  if (!el) return;
+  if (html) { el.className = 'text-[11px] rounded-lg px-3 py-2 ' + cls; el.innerHTML = html; }
+  else el.className = 'text-[11px] rounded-lg px-3 py-2 hidden';
+}
+async function detectImageCapability() {
+  const input = $('set-image-model');
+  const model = input ? input.value.trim() : '';
+  const enabled = $('set-image-enabled') ? $('set-image-enabled').checked : false;
+  if (!model) { showImageCapabilityHint('', ''); return; }
+  let res = null;
+  try { res = (await jfetch('/api/settings/image-models/detect', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model }) })).data; } catch(e){}
+  if (!res) { showImageCapabilityHint('', ''); return; }
+  if (res.capability === 'multi_ref') {
+    showImageCapabilityHint(`🎯 已识别：<b>${esc(res.matched_name)}</b><br>${esc(res.note)}<br><b class="text-emerald-600">→ 支持真 3D 多视角生图（多角度一致性强）</b>${enabled ? '' : '<br><span class="text-amber-600">⚠ 你尚未启用 image 组，保存后将使用演示模式</span>'}`,
+      'bg-emerald-50 text-emerald-800');
+  } else if (res.capability === 'image_gen') {
+    showImageCapabilityHint(`🖼️ 已识别：<b>${esc(res.matched_name)}</b><br>${esc(res.note)}<br><b class="text-indigo-600">→ 可走图生图 / 图编辑生成多角度，角度由 prompt 控制</b>${enabled ? '' : '<br><span class="text-amber-600">⚠ 你尚未启用 image 组，保存后将使用演示模式</span>'}`,
+      'bg-indigo-50 text-indigo-800');
+  } else if (res.capability === 'not_image') {
+    showImageCapabilityHint(`⚠️ 已识别：<b>${esc(res.matched_name)}</b><br>${esc(res.note)}<br><b class="text-amber-600">→ 该模型不能生成图片；资产生成将使用演示模式（几何变换占位）</b>`,
+      'bg-amber-50 text-amber-800');
+  } else {
+    showImageCapabilityHint(`❓ 未收录该模型<br>${esc(res.note || '')}<br><span class="text-slate-500">系统会按 OpenAI 兼容 /images/generations 尝试调用；失败则降级演示模式。</span>`,
+      'bg-slate-50 text-slate-600');
+  }
+}
+function onImageModelInput() { clearTimeout(_detectTimer); _detectTimer = setTimeout(detectImageCapability, 400); }
+
+function renderSettings() {
+  const st = S.settings || {};
+  const videoDlOpts = videoCatalog ? [
+    ...(videoCatalog.native_audio || []).map(m => `<option value="${esc(m.example || m.name)}">${esc(m.name)} · 自带原生音频</option>`),
+    ...(videoCatalog.tts_audio || []).map(m => `<option value="${esc(m.example || m.name)}">${esc(m.name)} · 后期配音</option>`),
+  ].join('') : '';
+  const imageDlOpts = imageCatalog ? [
+    ...(imageCatalog.multi_ref || []).map(m => `<option value="${esc(m.example || m.name)}">${esc(m.name)} · 多参考生图</option>`),
+    ...(imageCatalog.image_gen || []).map(m => `<option value="${esc(m.example || m.name)}">${esc(m.name)} · 图生图</option>`),
+  ].join('') : '';
+  $('settings-groups').innerHTML = SETTING_GROUPS.map(g => {
+    const s = st[g.key] || {};
+    const gid = 'set-' + g.key;
+    const isVideo = g.key === 'video';
+    const isImage = g.key === 'image';
+    return `
+    <div class="border border-slate-200 rounded-xl overflow-hidden">
+      <div class="px-4 py-3 bg-slate-50 flex items-center justify-between gap-2 cursor-pointer" onclick="toggleGroup('${gid}')">
+        <div>
+          <p class="font-medium text-slate-800 text-sm">${g.name}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">${g.desc}</p>
+        </div>
+        <span class="shrink-0 text-xs">${s.enabled ? '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">启用中</span>' : '<span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">关闭</span>'}</span>
+      </div>
+      <div class="px-4 py-3 border-t border-slate-100 hidden" id="${gid}">
+        <label class="flex items-center gap-2 text-sm text-slate-700 mb-3 cursor-pointer">
+          <input type="checkbox" id="${gid}-enabled" ${s.enabled ? 'checked' : ''} class="w-4 h-4 accent-emerald-600" /> 启用这组 API
+        </label>
+        <div class="space-y-2">
+          <div><label class="text-[11px] text-slate-500">接口地址 Base URL</label>
+            <input id="${gid}-base" type="url" value="${esc(s.base_url || '')}" placeholder="${g.ph.base}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="text-[11px] text-slate-500">模型名 Model${isVideo || isImage ? '（可从下方候选点选，也可自由输入）' : ''}</label>
+            <input id="${gid}-model" type="text" value="${esc(s.model || '')}" placeholder="${g.ph.model}" list="${isVideo ? 'video-model-list' : (isImage ? 'image-model-list' : '')}" ${isVideo ? 'oninput="onVideoModelInput()"' : (isImage ? 'oninput="onImageModelInput()"' : '')} class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            ${isVideo ? `<datalist id="video-model-list">${videoDlOpts}</datalist>` : (isImage ? `<datalist id="image-model-list">${imageDlOpts}</datalist>` : '')}</div>
+          <div><label class="text-[11px] text-slate-500">API Key（存本机）</label>
+            <input id="${gid}-key" type="password" value="${esc(s.api_key || '')}" placeholder="sk-…" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" /></div>
+          ${isVideo ? videoAudioExtra(s) : ''}
+          ${isImage ? imageCapabilityExtra(s) : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  $('settings-groups').querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden')); // 默认展开便于首看
+  detectVideoAudio(); // 进入设置页即按已存模型名判断一次
+  detectImageCapability(); // 进入设置页即按已存图像模型名判断一次
+}
+function toggleGroup(id) { const el = $(id); if (el) el.classList.toggle('hidden'); }
+async function saveSettings() {
+  const payload = {};
+  SETTING_GROUPS.forEach(g => {
+    const gid = 'set-' + g.key;
+    const enabled = $(gid + '-enabled').checked;
+    const base = $(gid + '-base').value.trim();
+    const model = $(gid + '-model').value.trim();
+    const key = $(gid + '-key').value.trim();
+    payload[g.key] = {};
+    if (enabled) payload[g.key].enabled = true; else payload[g.key].enabled = false;
+    if (base) payload[g.key].base_url = base;
+    if (model) payload[g.key].model = model;
+    if (key) payload[g.key].api_key = key;
+    if (g.key === 'video') {
+      const mode = (document.querySelector('input[name="video-audio-mode"]:checked') || {}).value;
+      if (mode) payload[g.key].audio_mode = mode;
+    }
+  });
+  setBusy(true, '保存设置…');
+  try {
+    const json = await jfetch('/api/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    S.settings = json.data; setBusy(false); refreshModeBadge(); closeSettings();
+    showBanner('设置已保存 ✓ ' + (anyEnabled() ? '已启用真实 API 模式。' : '仍为演示模式（未启用任何 API 分组）。'), false);
+  } catch (err) { setBusy(false); showBanner('保存失败：' + err.message, true); }
+}
+function closeSettings() { $('settings-modal').classList.add('hidden'); }
+function anyEnabled() {
+  if (!S.settings) return false;
+  return SETTING_GROUPS.some(g => S.settings[g.key] && S.settings[g.key].enabled && S.settings[g.key].api_key);
+}
+async function refreshModeBadge() {
+  try { S.settings = (await jfetch('/api/settings')).data; } catch(e){}
+  const on = anyEnabled();
+  const badge = $('mode-badge');
+  if (on) { badge.className = 'text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700'; badge.textContent = '已启用真实 API'; }
+  else    { badge.className = 'text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700'; badge.textContent = '演示模式（未配置 API）'; }
+}
+
+/* ================================================================
+ *  初始化
+ * ================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  renderDropzones();
+  renderStepper();
+  renderProjectList();
+  refreshModeBadge();
+  // 若当前页 URL 带 ?pid=xxx 则直接载入（供后端跳转/测试）
+  const qp = new URLSearchParams(location.search).get('pid');
+  if (qp) loadProject(qp);
+});
+</script>
+</body>
+</html>

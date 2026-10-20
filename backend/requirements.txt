@@ -1,0 +1,24 @@
+# AI 视频工作流后端依赖
+
+# Web 框架
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+# 配置
+pydantic==2.9.2
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# AI 服务
+openai==1.55.0          # OpenAI GPT-4o
+requests==2.32.3        # HTTP 客户端（火山引擎/阿里百炼）
+httpx==0.27.2           # 异步 HTTP 客户端
+
+# 图像处理
+Pillow==11.0.0
+numpy==2.1.3
+
+# 工具
+python-jose[cryptography]==3.3.0  # JWT（可选）
+aiofiles==24.1.0        # 异步文件 IO
